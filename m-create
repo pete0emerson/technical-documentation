@@ -1,0 +1,107 @@
+#!/bin/bash
+
+DEFAULT_EDITOR="vi"
+DEFAULT_NOTES_DIR="$HOME/notes"
+
+requirements="gdate"
+
+function sanitize() {
+	echo "$@" | sed 's/ /_/g' | sed 's/[^A-Za-z1-9_]//g'
+}
+
+function check_requirements() {
+	okay=1
+	for r in $requirements ; do
+		which $r > /dev/null
+		if [[ $? -ne 0 ]] ; then
+			okay=0
+			>&2 echo "$r is not installed."
+		fi
+	done
+	echo $okay
+}
+
+okay=$(check_requirements)
+if [[ $okay -eq 0 ]] ; then
+	exit 1
+fi
+
+if [[ -z $NOTES_DIR ]] ; then
+	NOTES_DIR=$DEFAULT_NOTES_DIR
+fi
+
+if [[ -z $EDITOR ]] ; then
+	EDITOR=$DEFAULT_EDITOR
+fi
+
+title=${@}
+if [[ "$title" == "" ]] ; then
+	title="temp"
+fi
+
+date=$(gdate -u "+%Y %m %d %H %M %S %N")
+year=$(echo "$date" | awk '{print $1}')
+month=$(echo "$date" | awk '{print $2}')
+day=$(echo "$date" | awk '{print $3}')
+hour=$(echo "$date" | awk '{print $4}')
+minute=$(echo "$date" | awk '{print $5}')
+second=$(echo "$date" | awk '{print $6}')
+nanosecond=$(echo "$date" | awk '{print $7}')
+
+filename=$(sanitize "$title")
+filename="${NOTES_DIR}/${year}/${month}/${day}/${year}-${month}-${day}.${hour}.${minute}.${second}.${nanosecond}_${filename}.txt"
+echo $filename
+
+dir=$(dirname $filename)
+mkdir -p $dir
+
+author=$(whoami)
+
+if [[ "$title" != "temp" ]] ; then
+	echo "Title: $title" > $filename
+else
+	echo "Title: " > $filename
+fi
+
+echo "Author: $author" >> $filename
+echo "Date Created: ${year}-${month}-${day} ${hour}:${minute}:${second}":${nanosecond} >> $filename
+echo >> $filename
+
+# Go to the end of the document, if possible
+if [[ $title == "temp" ]] ; then
+	if [[ $EDITOR == "micro" ]] ; then
+		eval $EDITOR $filename
+	elif [[ $EDITOR == "vi" || $EDITOR == "vim" ]] ; then
+		eval $EDITOR $filename
+	else
+		eval $EDITOR $filename
+	fi
+else
+	if [[ $EDITOR == "micro" ]] ; then
+		eval $EDITOR +999999 $filename
+	elif [[ $EDITOR == "vi" || $EDITOR == "vim" ]] ; then
+		eval $EDITOR +G $filename
+	else
+		eval $EDITOR $filename
+	fi
+fi
+
+# If there is no content in the file, remove it.
+wc=$(wc -l $filename | awk '{print $1}')
+if [[ $wc -eq 4 ]] ; then
+	echo "No content added."
+	echo "Removed $filename"
+	# rm $filename
+	exit 0
+fi
+
+if [[ "$title" == "temp" ]] ; then
+	title=$(head -n1 $filename | sed 's/Title: //')
+	title=$(sanitize "$title")
+	if [[ "$title" == "" ]] ; then
+		echo "File has no title. Leaving: $filename"
+	else
+		new_filename=$(echo $filename | sed 's/_temp\.txt//')_$title.txt
+		exec mv $filename $new_filename
+	fi
+fi

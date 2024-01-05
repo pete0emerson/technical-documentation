@@ -1,0 +1,28 @@
+#!/bin/bash
+
+if [[ ! -f "$1" ]] ; then
+	echo "Specify mail file to extract."
+	exit 0
+fi
+
+cat "$1" | egrep '^(From|Date|Subject|To):'
+boundary=$(grep '^Content-Type.*boundary=".*"' "$1" | cut -d ';' -f 2 | sed 's/ boundary=//' | sed 's/"//g')
+
+done=0
+print=0
+while IFS="" read -r p || [ -n "$p" ] ; do
+	if [[ $done -eq 0 ]] ; then
+		if [[ "$p" == "--$boundary" ]] ; then
+			if [[ $print -eq 0 ]] ; then
+				print=1
+			else
+				print=0
+			fi
+		else
+			if [[ $print -eq 1 ]] ; then
+				printf '%s\n' "$p"
+			fi
+		fi
+	fi
+done < "$1"
+
